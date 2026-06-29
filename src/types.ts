@@ -38,6 +38,7 @@ export interface Investment {
   expiresAt: string;
   lastYieldClaimedAt: string;
   status: "ACTIVE" | "COMPLETED";
+  durationDays?: number;
 }
 
 export interface Transaction {

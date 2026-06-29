@@ -8,6 +8,17 @@ interface MyInvestmentsViewProps {
   loadingCollect: boolean;
 }
 
+const parseDate = (val: any): Date => {
+  if (!val) return new Date();
+  if (typeof val.toDate === "function") {
+    return val.toDate();
+  }
+  if (val.seconds) {
+    return new Date(val.seconds * 1000);
+  }
+  return new Date(val);
+};
+
 export default function MyInvestmentsView({
   investments,
   onCollectYield,
@@ -31,8 +42,8 @@ export default function MyInvestmentsView({
       let totalUncollected = 0;
 
       activeInvestments.forEach((inv) => {
-        const lastClaim = new Date(inv.lastYieldClaimedAt);
-        const expires = new Date(inv.expiresAt);
+        const lastClaim = parseDate(inv.lastYieldClaimedAt || inv.startedAt);
+        const expires = parseDate(inv.expiresAt || (inv.startedAt ? new Date(parseDate(inv.startedAt).getTime() + (inv.durationDays || 30) * 24 * 3600 * 1000) : new Date()));
         const endTime = now > expires ? expires : now;
 
         const diffMs = endTime.getTime() - lastClaim.getTime();
@@ -109,13 +120,15 @@ export default function MyInvestmentsView({
         ) : (
           <div className="space-y-3">
             {activeInvestments.map((inv) => {
-              const start = new Date(inv.startedAt).toLocaleDateString();
-              const end = new Date(inv.expiresAt).toLocaleDateString();
+              const startDate = parseDate(inv.startedAt);
+              const expiresDate = parseDate(inv.expiresAt || new Date(startDate.getTime() + (inv.durationDays || 30) * 24 * 3600 * 1000));
+              const start = startDate.toLocaleDateString();
+              const end = expiresDate.toLocaleDateString();
               
               // Calculate term progression
-              const totalTermMs = new Date(inv.expiresAt).getTime() - new Date(inv.startedAt).getTime();
-              const elapsedMs = new Date().getTime() - new Date(inv.startedAt).getTime();
-              const progress = Math.min(100, Math.max(0, (elapsedMs / totalTermMs) * 100));
+              const totalTermMs = expiresDate.getTime() - startDate.getTime();
+              const elapsedMs = new Date().getTime() - startDate.getTime();
+              const progress = totalTermMs > 0 ? Math.min(100, Math.max(0, (elapsedMs / totalTermMs) * 100)) : 100;
 
               return (
                 <div

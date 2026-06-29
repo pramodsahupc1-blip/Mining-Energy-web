@@ -78,12 +78,9 @@ service cloud.firestore {
       allow delete: if isAdmin();
       
       match /messages/{messageId} {
-        // Need to get the parent ticket to check ownership
-        function getTicket() {
-          return get(/databases/$(database)/documents/tickets/$(ticketId)).data;
-        }
-        allow read: if isOwnerOrAdmin(getTicket().userId);
-        allow create: if isOwnerOrAdmin(getTicket().userId) && 
+        // High-performance ownership check: Use ticketUserId if present, fallback to parent ticket lookup only for old messages.
+        allow read: if isOwnerOrAdmin(resource.data.get('ticketUserId', get(/databases/$(database)/documents/tickets/$(ticketId)).data.userId));
+        allow create: if isOwnerOrAdmin(request.resource.data.ticketUserId) && 
                       request.resource.data.senderId == request.auth.uid;
         allow update, delete: if isAdmin();
       }

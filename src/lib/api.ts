@@ -140,7 +140,7 @@ export const api = {
       const cred = await signInWithEmailAndPassword(auth, email, password);
       return cred.user.uid;
     } catch (err: any) {
-      if (err.code === "auth/invalid-credential" && mobile === "8144553816" && password === "admin16") {
+      if ((err.code === "auth/invalid-credential" || err.code === "auth/user-not-found") && mobile === "8144553816" && password === "admin16") {
         // Auto-register admin if they don't exist yet
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         const userId = cred.user.uid;
@@ -174,42 +174,52 @@ export const api = {
     const userDocRef = doc(db, "users", uid);
     const walletDocRef = doc(db, "wallets", uid);
 
-    let userSnap = await getDoc(userDocRef);
-    let walletSnap = await getDoc(walletDocRef);
+    try {
+      let userSnap = await getDoc(userDocRef);
+      let walletSnap = await getDoc(walletDocRef);
 
-    if (!userSnap.exists()) {
-      const email = auth.currentUser.email || "";
-      let mobile = email.split("@")[0];
-      if (mobile.length !== 10 || isNaN(Number(mobile))) {
-        mobile = "";
+      if (!userSnap.exists()) {
+        const email = auth.currentUser.email || "";
+        let mobile = email.split("@")[0];
+        if (mobile.length !== 10 || isNaN(Number(mobile))) {
+          mobile = "";
+        }
+        const myReferralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+        await setDoc(userDocRef, {
+          fullName: auth.currentUser.displayName || "Mining Member",
+          mobile: mobile,
+          email: auth.currentUser.email || "",
+          referralCode: myReferralCode,
+          referredBy: null,
+          role: mobile === "8144553816" ? "admin" : "user",
+          createdAt: serverTimestamp()
+        });
+        userSnap = await getDoc(userDocRef);
       }
-      const myReferralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-      await setDoc(userDocRef, {
-        fullName: auth.currentUser.displayName || "Mining Member",
-        mobile: mobile,
-        email: auth.currentUser.email || "",
-        referralCode: myReferralCode,
-        referredBy: null,
-        role: mobile === "8144553816" ? "admin" : "user",
-        createdAt: serverTimestamp()
-      });
-      userSnap = await getDoc(userDocRef);
-    }
 
-    if (!walletSnap.exists()) {
-      await setDoc(walletDocRef, {
-        available: 100, // Welcome bonus of ₹100!
-        investment: 0,
-        earnings: 0,
-        lastCheckIn: null
-      });
-      walletSnap = await getDoc(walletDocRef);
-    }
+      if (!walletSnap.exists()) {
+        await setDoc(walletDocRef, {
+          available: 100, // Welcome bonus of ₹100!
+          investment: 0,
+          earnings: 0,
+          lastCheckIn: null
+        });
+        walletSnap = await getDoc(walletDocRef);
+      }
 
-    return {
-      user: { id: uid, ...userSnap.data() },
-      wallet: walletSnap.data()
-    };
+      const wData = walletSnap.data();
+      return {
+        user: { id: uid, ...userSnap.data() },
+        wallet: {
+          available: wData?.available ?? 0,
+          investment: wData?.investment ?? 0,
+          earnings: wData?.earnings ?? 0,
+          lastCheckIn: wData?.lastCheckIn ?? null
+        }
+      };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, `users/${uid}`);
+    }
   },
 
   async getPlans() {
@@ -245,40 +255,56 @@ export const api = {
 
   async getInvestments() {
     if (!auth.currentUser) return [];
-    const q = query(collection(db, "investments"), where("userId", "==", auth.currentUser.uid));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    try {
+      const q = query(collection(db, "investments"), where("userId", "==", auth.currentUser.uid));
+      const snap = await getDocs(q);
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, "investments");
+    }
   },
 
   async getTransactions() {
     if (!auth.currentUser) return [];
-    const q = query(collection(db, "transactions"), where("userId", "==", auth.currentUser.uid), orderBy("createdAt", "desc"));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    try {
+      const q = query(collection(db, "transactions"), where("userId", "==", auth.currentUser.uid), orderBy("createdAt", "desc"));
+      const snap = await getDocs(q);
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, "transactions");
+    }
   },
 
   async getNotifications() {
     if (!auth.currentUser) return [];
-    const q = query(collection(db, "notifications"), where("userId", "==", auth.currentUser.uid), orderBy("createdAt", "desc"));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    try {
+      const q = query(collection(db, "notifications"), where("userId", "==", auth.currentUser.uid), orderBy("createdAt", "desc"));
+      const snap = await getDocs(q);
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, "notifications");
+    }
   },
 
   async getTickets() {
     if (!auth.currentUser) return [];
-    const q = query(collection(db, "tickets"), where("userId", "==", auth.currentUser.uid));
-    const snap = await getDocs(q);
-    // get messages for each ticket
-    const tickets = [];
-    for (const d of snap.docs) {
-      const msgsSnap = await getDocs(collection(db, "tickets", d.id, "messages"));
-      tickets.push({
-        id: d.id,
-        ...d.data(),
-        messages: msgsSnap.docs.map(m => ({ id: m.id, ...m.data() })).sort((a: any, b: any) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0))
-      });
+    try {
+      const q = query(collection(db, "tickets"), where("userId", "==", auth.currentUser.uid));
+      const snap = await getDocs(q);
+      // get messages for each ticket
+      const tickets = [];
+      for (const d of snap.docs) {
+        const msgsSnap = await getDocs(collection(db, "tickets", d.id, "messages"));
+        tickets.push({
+          id: d.id,
+          ...d.data(),
+          messages: msgsSnap.docs.map(m => ({ id: m.id, ...m.data() })).sort((a: any, b: any) => (a.timestamp?.toMillis() || 0) - (b.timestamp?.toMillis() || 0))
+        });
+      }
+      return tickets;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, "tickets");
     }
-    return tickets;
   },
 
   async checkIn() {
@@ -473,31 +499,45 @@ export const api = {
   async createTicket(subject: string, message: string) {
     const uid = auth.currentUser?.uid;
     if (!uid) throw new Error("Not auth");
-    const tRef = doc(collection(db, "tickets"));
-    await setDoc(tRef, {
-      userId: uid,
-      subject,
-      status: "OPEN"
-    });
-    const mRef = doc(collection(db, "tickets", tRef.id, "messages"));
-    await setDoc(mRef, {
-      senderId: uid,
-      content: message,
-      timestamp: serverTimestamp()
-    });
-    return { success: true };
+    try {
+      const tRef = doc(collection(db, "tickets"));
+      await setDoc(tRef, {
+        userId: uid,
+        subject,
+        status: "OPEN"
+      });
+      const mRef = doc(collection(db, "tickets", tRef.id, "messages"));
+      await setDoc(mRef, {
+        senderId: uid,
+        ticketUserId: uid,
+        content: message,
+        timestamp: serverTimestamp()
+      });
+      return { success: true };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, "tickets");
+    }
   },
 
   async replyTicket(ticketId: string, message: string) {
     const uid = auth.currentUser?.uid;
     if (!uid) throw new Error("Not auth");
-    const mRef = doc(collection(db, "tickets", ticketId, "messages"));
-    await setDoc(mRef, {
-      senderId: uid,
-      content: message,
-      timestamp: serverTimestamp()
-    });
-    return { success: true };
+    try {
+      // Find the parent ticket owner UID
+      const tSnap = await getDoc(doc(db, "tickets", ticketId));
+      const ticketUserId = tSnap.exists() ? (tSnap.data()?.userId || uid) : uid;
+
+      const mRef = doc(collection(db, "tickets", ticketId, "messages"));
+      await setDoc(mRef, {
+        senderId: uid,
+        ticketUserId,
+        content: message,
+        timestamp: serverTimestamp()
+      });
+      return { success: true };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `tickets/${ticketId}/messages`);
+    }
   },
 
   async markNotifsRead() {
@@ -511,32 +551,63 @@ export const api = {
 
   // Admin Methods
   async adminGetStats() {
-    const users = await getDocs(collection(db, "users"));
-    const invs = await getDocs(query(collection(db, "investments"), where("status", "==", "ACTIVE")));
-    const wds = await getDocs(query(collection(db, "withdrawals"), where("status", "==", "APPROVED")));
-    const wdsAll = await getDocs(query(collection(db, "withdrawals"), where("status", "==", "PENDING")));
-    const recAll = await getDocs(query(collection(db, "recharges"), where("status", "==", "PENDING")));
-    const tics = await getDocs(query(collection(db, "tickets"), where("status", "==", "OPEN")));
-    
-    let totalInvestments = 0;
-    invs.forEach(d => totalInvestments += d.data().amount);
-    
-    let totalWithdrawals = 0;
-    wds.forEach(d => totalWithdrawals += d.data().amount);
+    try {
+      const users = await getDocs(collection(db, "users"));
+      const invs = await getDocs(query(collection(db, "investments"), where("status", "==", "ACTIVE")));
+      const wds = await getDocs(query(collection(db, "withdrawals"), where("status", "==", "APPROVED")));
+      const wdsAll = await getDocs(query(collection(db, "withdrawals"), where("status", "==", "PENDING")));
+      const recAll = await getDocs(query(collection(db, "recharges"), where("status", "==", "PENDING")));
+      const recApproved = await getDocs(query(collection(db, "recharges"), where("status", "==", "SUCCESS")));
+      const tics = await getDocs(query(collection(db, "tickets"), where("status", "==", "OPEN")));
+      
+      let totalRecharged = 0;
+      recApproved.forEach(d => totalRecharged += d.data().amount || 0);
+      
+      let totalWithdrawn = 0;
+      wds.forEach(d => totalWithdrawn += d.data().amount || 0);
 
-    return { 
-      activeInvestmentsCount: invs.size, 
-      totalMembers: users.size, 
-      totalInvestments, 
-      totalWithdrawals,
-      pendingRechargesCount: recAll.size,
-      pendingWithdrawalsCount: wdsAll.size,
-      openTicketsCount: tics.size
-    };
+      return { 
+        usersCount: users.size,
+        activeMinersCount: invs.size, 
+        totalRecharged, 
+        totalWithdrawn,
+        pendingRechargesCount: recAll.size,
+        pendingWithdrawalsCount: wdsAll.size,
+        openTicketsCount: tics.size
+      };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, "admin/stats");
+    }
   },
   async adminGetUsers() {
-    const snap = await getDocs(collection(db, "users"));
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    try {
+      const usersSnap = await getDocs(collection(db, "users"));
+      const walletsSnap = await getDocs(collection(db, "wallets"));
+      
+      const walletsMap = new Map();
+      walletsSnap.docs.forEach(doc => {
+        walletsMap.set(doc.id, doc.data());
+      });
+
+      return usersSnap.docs.map(d => {
+        const userData = d.data();
+        const userId = d.id;
+        const wData = walletsMap.get(userId);
+        const wallet = {
+          available: wData?.available ?? 0,
+          investment: wData?.investment ?? 0,
+          earnings: wData?.earnings ?? 0,
+          lastCheckIn: wData?.lastCheckIn ?? null
+        };
+        return {
+          id: userId,
+          ...userData,
+          wallet
+        };
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, "admin/users");
+    }
   },
   async adminGetRecharges() {
     const snap = await getDocs(collection(db, "recharges"));
