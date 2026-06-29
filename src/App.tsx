@@ -110,7 +110,7 @@ export default function App() {
 
   // Silent update for smooth real-time earnings ticking
   const silentFetchUserData = async () => {
-    if (!token) return;
+    if (!token || !auth.currentUser) return;
     try {
       const data = await api.getMe();
       setWallet(data.wallet as any);
@@ -120,7 +120,7 @@ export default function App() {
   };
 
   const refreshUserArrays = async () => {
-    if (!token) return;
+    if (!token || !auth.currentUser) return;
     try {
       const invData = await api.getInvestments();
       setInvestments(invData as any);
@@ -148,7 +148,7 @@ export default function App() {
   };
 
   const fetchAdminData = async () => {
-    if (!token) return;
+    if (!token || !auth.currentUser) return;
     try {
       const stats = await api.adminGetStats();
       setAdminStats(stats);
