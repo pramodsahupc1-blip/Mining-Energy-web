@@ -1,0 +1,159 @@
+{
+  "entities": {
+    "User": {
+      "type": "document",
+      "fields": {
+        "fullName": { "type": "string" },
+        "mobile": { "type": "string" },
+        "referralCode": { "type": "string" },
+        "referredBy": { "type": "string", "optional": true },
+        "role": { "type": "string", "enumValues": ["user", "admin"] },
+        "createdAt": { "type": "timestamp" }
+      }
+    },
+    "Wallet": {
+      "type": "document",
+      "fields": {
+        "available": { "type": "number" },
+        "investment": { "type": "number" },
+        "earnings": { "type": "number" },
+        "lastCheckIn": { "type": "string", "optional": true }
+      }
+    },
+    "Plan": {
+      "type": "document",
+      "fields": {
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "price": { "type": "number" },
+        "dailyIncome": { "type": "number" },
+        "durationDays": { "type": "number" },
+        "hashrate": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "status": { "type": "boolean" }
+      }
+    },
+    "Investment": {
+      "type": "document",
+      "fields": {
+        "userId": { "type": "string" },
+        "planId": { "type": "string" },
+        "amount": { "type": "number" },
+        "dailyIncome": { "type": "number" },
+        "remainingDays": { "type": "number" },
+        "status": { "type": "string", "enumValues": ["ACTIVE", "COMPLETED", "CANCELLED"] },
+        "startedAt": { "type": "timestamp" },
+        "nextYieldAt": { "type": "timestamp" }
+      }
+    },
+    "Transaction": {
+      "type": "document",
+      "fields": {
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enumValues": ["RECHARGE", "WITHDRAWAL", "YIELD", "PLAN_PURCHASE", "CHECK_IN", "SYSTEM"] },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enumValues": ["PENDING", "SUCCESS", "FAILED"] },
+        "reference": { "type": "string", "optional": true },
+        "description": { "type": "string" },
+        "createdAt": { "type": "timestamp" }
+      }
+    },
+    "Recharge": {
+      "type": "document",
+      "fields": {
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enumValues": ["PENDING", "APPROVED", "REJECTED"] },
+        "method": { "type": "string" },
+        "reference": { "type": "string" },
+        "createdAt": { "type": "timestamp" },
+        "updatedAt": { "type": "timestamp", "optional": true }
+      }
+    },
+    "Withdrawal": {
+      "type": "document",
+      "fields": {
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "bankName": { "type": "string" },
+        "accountNumber": { "type": "string" },
+        "ifscCode": { "type": "string" },
+        "status": { "type": "string", "enumValues": ["PENDING", "APPROVED", "REJECTED"] },
+        "createdAt": { "type": "timestamp" },
+        "updatedAt": { "type": "timestamp", "optional": true }
+      }
+    },
+    "Ticket": {
+      "type": "document",
+      "fields": {
+        "userId": { "type": "string" },
+        "subject": { "type": "string" },
+        "status": { "type": "string", "enumValues": ["OPEN", "RESOLVED"] }
+      }
+    },
+    "TicketMessage": {
+      "type": "document",
+      "fields": {
+        "senderId": { "type": "string" },
+        "content": { "type": "string" },
+        "timestamp": { "type": "timestamp" }
+      }
+    },
+    "Notification": {
+      "type": "document",
+      "fields": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "timestamp" }
+      }
+    }
+  },
+  "firestore": {
+    "collections": {
+      "users": {
+        "entity": "User",
+        "access": "owner_and_admin"
+      },
+      "wallets": {
+        "entity": "Wallet",
+        "access": "owner_and_admin"
+      },
+      "plans": {
+        "entity": "Plan",
+        "access": "public_read_admin_write"
+      },
+      "investments": {
+        "entity": "Investment",
+        "access": "owner_and_admin"
+      },
+      "transactions": {
+        "entity": "Transaction",
+        "access": "owner_and_admin"
+      },
+      "recharges": {
+        "entity": "Recharge",
+        "access": "owner_and_admin"
+      },
+      "withdrawals": {
+        "entity": "Withdrawal",
+        "access": "owner_and_admin"
+      },
+      "tickets": {
+        "entity": "Ticket",
+        "access": "owner_and_admin",
+        "subcollections": {
+          "messages": {
+            "entity": "TicketMessage",
+            "access": "owner_and_admin"
+          }
+        }
+      },
+      "notifications": {
+        "entity": "Notification",
+        "access": "owner_and_admin"
+      }
+    }
+  }
+}
