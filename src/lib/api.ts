@@ -184,6 +184,9 @@ export const api = {
       const q = query(collection(db, "plans"), where("status", "==", true));
       const snap = await getDocs(q);
       if (snap.empty) {
+        if (!auth.currentUser) {
+          return [];
+        }
         // Seed default plans
         const DEFAULT_PLANS = [
           { name: "Antminer S19 Pro (Basic)", category: "Normal", price: 500, dailyIncome: 25, durationDays: 30, hashrate: "110 TH/s", imageUrl: "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=600&q=80", status: true },
