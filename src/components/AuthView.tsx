@@ -273,9 +273,9 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
         {isLogin && (
           <div className="mt-4 p-3 bg-slate-950 border border-slate-800/80 rounded-2xl text-center">
             <p className="text-xs text-slate-500">
-              Demo Admin Mobile: <span className="font-mono text-slate-300">9999999999</span>
+              Demo Admin Mobile: <span className="font-mono text-slate-300">8144553816</span>
               <br />
-              Demo Admin Password: <span className="font-mono text-slate-300">admin123</span>
+              Demo Admin Password: <span className="font-mono text-slate-300">admin16</span>
             </p>
           </div>
         )}
