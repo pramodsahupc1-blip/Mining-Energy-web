@@ -457,6 +457,44 @@ export const api = {
     return { success: true, message: "Recharge submitted for review." };
   },
 
+  async instantAutoRecharge(amount: number, method: string) {
+    const uid = auth.currentUser?.uid;
+    if (!uid) throw new Error("Not authenticated");
+    
+    const reference = "AUTO_UPI_" + Math.random().toString(36).substring(2, 11).toUpperCase();
+    
+    // Create successful recharge doc
+    const recRef = doc(collection(db, "recharges"));
+    await setDoc(recRef, {
+      userId: uid,
+      amount,
+      method,
+      reference,
+      status: "SUCCESS",
+      createdAt: serverTimestamp()
+    });
+    
+    // Create successful transaction doc
+    const txRef = doc(collection(db, "transactions"));
+    await setDoc(txRef, {
+      userId: uid,
+      type: "RECHARGE",
+      amount,
+      status: "SUCCESS",
+      reference,
+      description: `Instant Deposit via ${method}`,
+      createdAt: serverTimestamp()
+    });
+
+    // Update wallet immediately
+    const walletRef = doc(db, "wallets", uid);
+    await updateDoc(walletRef, {
+      available: increment(amount)
+    });
+
+    return { success: true, message: `Payment Received! ₹${amount} successfully credited to your wallet.` };
+  },
+
   async withdraw(payload: any) {
     const uid = auth.currentUser?.uid;
     if (!uid) throw new Error("Not auth");

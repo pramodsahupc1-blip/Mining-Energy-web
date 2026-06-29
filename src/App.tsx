@@ -244,6 +244,22 @@ export default function App() {
     }
   };
 
+  const handleInstantRecharge = async (amount: number, method: string) => {
+    setLoadingAction(true);
+    try {
+      const result = await api.instantAutoRecharge(amount, method);
+      alert(result.message);
+      if (result.success) {
+        await silentFetchUserData();
+        await refreshUserArrays();
+      }
+    } catch (err: any) {
+      alert(err.message || "Instant deposit failed");
+    } finally {
+      setLoadingAction(false);
+    }
+  };
+
   const handleWithdraw = async (payload: any) => {
     setLoadingAction(true);
     try {
@@ -481,6 +497,7 @@ export default function App() {
             wallet={wallet}
             transactions={transactions}
             onRecharge={handleRecharge}
+            onInstantRecharge={handleInstantRecharge}
             onWithdraw={handleWithdraw}
             loadingAction={loadingAction}
           />

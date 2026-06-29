@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { 
   Wallet, RefreshCw, Copy, ArrowDownLeft, ArrowUpRight, 
-  Clock, CheckCircle, XCircle, Landmark, CreditCard, Send, ShieldCheck
+  Clock, CheckCircle, XCircle, Landmark, CreditCard, Send, ShieldCheck,
+  ArrowLeft, X, Loader2
 } from "lucide-react";
 import { Wallet as WalletType, Transaction } from "../types";
 
@@ -9,6 +10,7 @@ interface WalletViewProps {
   wallet: WalletType;
   transactions: Transaction[];
   onRecharge: (amount: number, method: string, reference: string) => Promise<void>;
+  onInstantRecharge: (amount: number, method: string) => Promise<void>;
   onWithdraw: (body: {
     amount: number;
     bankName?: string;
@@ -26,6 +28,7 @@ export default function WalletView({
   wallet,
   transactions,
   onRecharge,
+  onInstantRecharge,
   onWithdraw,
   loadingAction,
 }: WalletViewProps) {
@@ -48,6 +51,44 @@ export default function WalletView({
 
   const UPI_RECEIVER_ID_YBL = "8144553816@ybl";
   const UPI_RECEIVER_ID_FAM = "8144553816@FAM";
+
+  // Instant UPI Gateway States
+  const [showUpiGateway, setShowUpiGateway] = useState(false);
+  const [selectedUpiApp, setSelectedUpiApp] = useState<string | null>(null);
+  const [isSimulatingPayment, setIsSimulatingPayment] = useState(false);
+  const [simulationStep, setSimulationStep] = useState<number>(0);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [autoRefNumber, setAutoRefNumber] = useState("");
+
+  const handleInstantPayNow = async (appName: string) => {
+    setSelectedUpiApp(appName);
+    setIsSimulatingPayment(true);
+    setSimulationStep(0);
+    setPaymentSuccess(false);
+
+    const stepDelay = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+    setSimulationStep(1);
+    await stepDelay(800);
+    setSimulationStep(2);
+    await stepDelay(800);
+    setSimulationStep(3);
+    await stepDelay(800);
+    setSimulationStep(4);
+    await stepDelay(600);
+
+    try {
+      await onInstantRecharge(rechargeAmount, appName);
+      
+      const ref = "AUTO_UPI_" + Math.random().toString(36).substring(2, 11).toUpperCase();
+      setAutoRefNumber(ref);
+      setPaymentSuccess(true);
+    } catch (err: any) {
+      alert(err.message || "Simulated gateway timed out. Please try again.");
+    } finally {
+      setIsSimulatingPayment(false);
+    }
+  };
 
   const handleQuickAmount = (val: number) => {
     setRechargeAmount(val);
@@ -196,6 +237,32 @@ export default function WalletView({
                   ₹{val.toLocaleString()}
                 </button>
               ))}
+            </div>
+
+            {/* Instant App Select Trigger */}
+            <div className="p-4.5 bg-gradient-to-r from-orange-600/15 via-amber-500/5 to-slate-900/40 border border-orange-500/20 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3.5 mt-2 shadow-sm">
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5 text-orange-400 font-bold text-xs uppercase tracking-wider">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>⚡ Instant Pay (Automatic Credit)</span>
+                </div>
+                <p className="text-slate-300 text-xs font-medium leading-relaxed">
+                  Select your UPI app directly to deposit instantly. No need to upload screenshots or wait for manual approvals.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!rechargeAmount || rechargeAmount < 100) {
+                    alert("Minimum recharge amount is ₹100");
+                    return;
+                  }
+                  setShowUpiGateway(true);
+                }}
+                className="w-full sm:w-auto bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap self-stretch sm:self-auto"
+              >
+                Pay via UPI App Now
+              </button>
             </div>
           </div>
 
@@ -531,6 +598,278 @@ export default function WalletView({
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* SIMULATED PHONE GATEWAY OVERLAY */}
+      {showUpiGateway && (
+        <div className="fixed inset-0 z-50 bg-[#060a12]/95 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 overflow-y-auto">
+          {/* Phone Mockup Body */}
+          <div className="w-full max-w-md bg-[#0a0f1d] text-slate-100 rounded-none sm:rounded-[40px] border-0 sm:border-8 sm:border-slate-800 shadow-2xl relative overflow-hidden flex flex-col min-h-[100dvh] sm:min-h-[750px] max-h-[100dvh] sm:max-h-[850px] font-sans">
+            
+            {/* Status Bar */}
+            <div className="flex justify-between items-center px-6 pt-3 pb-2 text-[11px] font-semibold text-slate-400 font-mono tracking-wider select-none">
+              <span>
+                {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase()}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] bg-slate-800 text-slate-300 px-1 py-0.2 rounded font-sans">5G</span>
+                <div className="flex gap-0.5 items-end h-2.5">
+                  <span className="w-0.5 h-1 bg-slate-400 rounded-full" />
+                  <span className="w-0.5 h-1.5 bg-slate-400 rounded-full" />
+                  <span className="w-0.5 h-2 bg-slate-400 rounded-full" />
+                  <span className="w-0.5 h-2.5 bg-slate-400 rounded-full" />
+                </div>
+                <span className="text-[10px]">82%</span>
+                <div className="w-5 h-2.5 border border-slate-500 rounded-sm p-0.5 flex items-center">
+                  <div className="w-full h-full bg-slate-400 rounded-2xs" />
+                </div>
+              </div>
+            </div>
+
+            {/* Back and Close Header */}
+            <div className="flex justify-between items-center px-4 py-2 border-b border-slate-900">
+              <button 
+                type="button"
+                onClick={() => {
+                  if (!isSimulatingPayment && !paymentSuccess) {
+                    setShowUpiGateway(false);
+                  }
+                }}
+                disabled={isSimulatingPayment}
+                className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer disabled:opacity-40"
+              >
+                <ArrowLeft size={16} />
+                <span>Back to details</span>
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isSimulatingPayment) {
+                    setShowUpiGateway(false);
+                    setPaymentSuccess(false);
+                  }
+                }}
+                disabled={isSimulatingPayment}
+                className="p-1.5 hover:bg-slate-900 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer disabled:opacity-40"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Scrollable Content Area */}
+            <div className="flex-1 overflow-y-auto px-5 py-6 flex flex-col justify-between">
+              
+              {!paymentSuccess ? (
+                <div className="space-y-6 flex-1 flex flex-col justify-between">
+                  
+                  {/* Paying Merchant Details */}
+                  <div className="space-y-1.5 text-center my-auto py-4">
+                    <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider block">Paying Merchant</span>
+                    <h3 className="text-xl font-extrabold text-white tracking-tight">
+                      Airtel Payments Bank Limited
+                    </h3>
+                    <div className="text-4xl font-extrabold text-white font-sans py-2">
+                      ₹{rechargeAmount.toFixed(2)}
+                    </div>
+                    <span className="text-xs italic text-slate-400 font-medium block">
+                      "Instant UPI Scan"
+                    </span>
+                  </div>
+
+                  {/* UPI Apps selection section */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                        SELECT UPI PAYMENT APP
+                      </span>
+                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
+                    </div>
+
+                    <div className="space-y-3">
+                      {/* PhonePe */}
+                      <div className="bg-[#12192c] border border-slate-800/60 rounded-2xl p-4 flex items-center justify-between hover:border-purple-500/50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-purple-600/20 text-purple-400 rounded-full flex items-center justify-center font-bold text-lg border border-purple-500/20">
+                            P
+                          </div>
+                          <div className="text-left">
+                            <span className="text-xs text-slate-200 font-bold block uppercase tracking-wider">PhonePe</span>
+                            <span className="text-[10px] text-slate-400">Pay securely with @ybl handler</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleInstantPayNow("PhonePe")}
+                          className="text-xs font-extrabold text-purple-400 hover:text-purple-300 transition-colors cursor-pointer py-1 px-3 bg-purple-500/10 hover:bg-purple-500/20 rounded-lg"
+                        >
+                          Pay Now
+                        </button>
+                      </div>
+
+                      {/* Google Pay */}
+                      <div className="bg-[#12192c] border border-slate-800/60 rounded-2xl p-4 flex items-center justify-between hover:border-blue-500/50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-blue-600/20 text-blue-400 rounded-full flex items-center justify-center font-bold text-lg border border-blue-500/20">
+                            G
+                          </div>
+                          <div className="text-left">
+                            <span className="text-xs text-slate-200 font-bold block uppercase tracking-wider">Google Pay</span>
+                            <span className="text-[10px] text-slate-400">Pay directly with GPay engine</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleInstantPayNow("Google Pay")}
+                          className="text-xs font-extrabold text-blue-400 hover:text-blue-300 transition-colors cursor-pointer py-1 px-3 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg"
+                        >
+                          Pay Now
+                        </button>
+                      </div>
+
+                      {/* Paytm */}
+                      <div className="bg-[#12192c] border border-slate-800/60 rounded-2xl p-4 flex items-center justify-between hover:border-teal-500/50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-teal-600/20 text-teal-400 rounded-full flex items-center justify-center font-bold text-lg border border-teal-500/20">
+                            Py
+                          </div>
+                          <div className="text-left">
+                            <span className="text-xs text-slate-200 font-bold block uppercase tracking-wider">Paytm UPI</span>
+                            <span className="text-[10px] text-slate-400">Instant Paytm Wallet/Bank pay</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleInstantPayNow("Paytm UPI")}
+                          className="text-xs font-extrabold text-teal-400 hover:text-teal-300 transition-colors cursor-pointer py-1 px-3 bg-teal-500/10 hover:bg-teal-500/20 rounded-lg"
+                        >
+                          Pay Now
+                        </button>
+                      </div>
+
+                      {/* BHIM UPI */}
+                      <div className="bg-[#12192c] border border-slate-800/60 rounded-2xl p-4 flex items-center justify-between hover:border-orange-500/50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-orange-600/20 text-orange-400 rounded-full flex items-center justify-center font-bold text-lg border border-orange-500/20">
+                            B
+                          </div>
+                          <div className="text-left">
+                            <span className="text-xs text-slate-200 font-bold block uppercase tracking-wider">BHIM UPI</span>
+                            <span className="text-[10px] text-slate-400">Government Interoperable Core</span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleInstantPayNow("BHIM UPI")}
+                          className="text-xs font-extrabold text-orange-400 hover:text-orange-300 transition-colors cursor-pointer py-1 px-3 bg-orange-500/10 hover:bg-orange-500/20 rounded-lg"
+                        >
+                          Pay Now
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Interoperable UPI Core Footer */}
+                  <div className="flex items-center justify-center gap-1.5 py-4 text-slate-500 select-none">
+                    <span className="text-[10px] text-amber-500">⚡</span>
+                    <span className="text-[10px] font-medium tracking-wide">
+                      Interoperable UPI Core • Powered by NPCI
+                    </span>
+                  </div>
+
+                </div>
+              ) : (
+                /* SUCCESS CONFIRMATION STATE */
+                <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6 my-auto">
+                  {/* Success Checkmark Ring */}
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-emerald-500/20 rounded-full blur-xl scale-125 animate-pulse" />
+                    <div className="w-20 h-20 bg-gradient-to-tr from-emerald-600 to-teal-500 rounded-full flex items-center justify-center shadow-lg relative z-10">
+                      <CheckCircle size={44} className="text-white" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">Payment Received</span>
+                    <h3 className="text-2xl font-black text-white tracking-tight">₹{rechargeAmount.toLocaleString()}</h3>
+                    <p className="text-xs text-slate-400 max-w-[280px] mx-auto leading-relaxed">
+                      The funds were verified and credited to your wallet instantly using the automated secure core gateway!
+                    </p>
+                  </div>
+
+                  {/* Meta Details Receipt */}
+                  <div className="w-full bg-slate-900/80 border border-slate-800/60 rounded-2xl p-4.5 space-y-3 text-left">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-500 font-medium">Payment App</span>
+                      <span className="text-slate-300 font-bold">{selectedUpiApp}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-500 font-medium">To Merchant</span>
+                      <span className="text-slate-300 font-semibold text-[11px]">Airtel Payments Bank Ltd</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-500 font-medium">Reference ID</span>
+                      <span className="text-slate-300 font-mono text-[11px] tracking-tight">{autoRefNumber}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-500 font-medium">Timestamp</span>
+                      <span className="text-slate-300 text-[11px]">Just now</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowUpiGateway(false);
+                      setPaymentSuccess(false);
+                      setActiveTab("history"); // Take user straight to History so they see their balance is fully credited!
+                    }}
+                    className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white font-extrabold rounded-2xl shadow-lg shadow-emerald-900/10 hover:shadow-emerald-500/10 transition-all cursor-pointer animate-pulse"
+                  >
+                    Done & View History
+                  </button>
+                </div>
+              )}
+
+            </div>
+
+            {/* SIMULATED GATEWAY LOADER COVER */}
+            {isSimulatingPayment && (
+              <div className="absolute inset-0 bg-[#0a0f1d]/98 z-50 flex flex-col items-center justify-center p-6 space-y-6">
+                <div className="relative">
+                  <div className="w-16 h-16 rounded-full border-4 border-slate-800 flex items-center justify-center font-black text-xl text-orange-400 select-none animate-pulse">
+                    {selectedUpiApp === "PhonePe" ? "P" : selectedUpiApp === "Google Pay" ? "G" : selectedUpiApp === "Paytm UPI" ? "Py" : "B"}
+                  </div>
+                  <Loader2 className="absolute -inset-1.5 w-[76px] h-[76px] animate-spin text-orange-500" />
+                </div>
+
+                <div className="space-y-2 text-center">
+                  <p className="text-sm font-bold text-slate-100 uppercase tracking-wider animate-pulse">
+                    {selectedUpiApp} Gateway
+                  </p>
+                  
+                  {/* Stepper message details */}
+                  <p className="text-xs text-slate-400 min-h-[1.5rem] leading-relaxed">
+                    {simulationStep === 1 && "Securing connection with Airtel Payments Bank..."}
+                    {simulationStep === 2 && `Authorizing ₹${rechargeAmount} with UPI network...`}
+                    {simulationStep === 3 && "Requesting secure PIN verification..."}
+                    {simulationStep === 4 && "Handshake complete! Crediting wallet balance..."}
+                  </p>
+                </div>
+
+                <div className="flex gap-1 justify-center">
+                  {[0, 1, 2].map((idx) => (
+                    <span 
+                      key={idx} 
+                      className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" 
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+          </div>
         </div>
       )}
     </div>
