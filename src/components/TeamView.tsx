@@ -171,7 +171,7 @@ export default function TeamView({
                 <div className="space-y-0.5">
                   <h4 className="font-bold text-slate-200">{member.fullName}</h4>
                   <p className="text-slate-500 font-mono text-xxs">
-                    Mobile: {member.mobile.substring(0, 3)}****{member.mobile.substring(7)}
+                    Mobile: {member.mobile ? `${member.mobile.substring(0, 3)}****${member.mobile.substring(Math.max(0, member.mobile.length - 4))}` : "N/A"}
                   </p>
                 </div>
                 <div className="text-right space-y-0.5 text-slate-500 text-xxs">

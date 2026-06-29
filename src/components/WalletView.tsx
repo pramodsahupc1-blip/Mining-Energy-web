@@ -566,7 +566,7 @@ export default function WalletView({
                       <p className="text-slate-500 text-xxs font-mono flex items-center gap-1">
                         <span>{date} {time}</span>
                         <span>•</span>
-                        <span>Ref: {tx.reference.substring(0, 10)}</span>
+                        <span>Ref: {tx.reference ? tx.reference.substring(0, 10) : "N/A"}</span>
                       </p>
                     </div>
 
