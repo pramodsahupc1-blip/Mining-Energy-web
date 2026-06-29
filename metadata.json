@@ -1,0 +1,6 @@
+{
+  "name": "Mining Energy",
+  "description": "A cryptocurrency mining investment platform allowing users to purchase virtual mining power, manage a digital wallet, invite team members, and track daily mining yields.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
