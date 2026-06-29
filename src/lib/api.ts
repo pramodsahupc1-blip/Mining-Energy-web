@@ -171,8 +171,41 @@ export const api = {
   async getMe() {
     if (!auth.currentUser) throw new Error("Not authenticated");
     const uid = auth.currentUser.uid;
-    const userSnap = await getDoc(doc(db, "users", uid));
-    const walletSnap = await getDoc(doc(db, "wallets", uid));
+    const userDocRef = doc(db, "users", uid);
+    const walletDocRef = doc(db, "wallets", uid);
+
+    let userSnap = await getDoc(userDocRef);
+    let walletSnap = await getDoc(walletDocRef);
+
+    if (!userSnap.exists()) {
+      const email = auth.currentUser.email || "";
+      let mobile = email.split("@")[0];
+      if (mobile.length !== 10 || isNaN(Number(mobile))) {
+        mobile = "";
+      }
+      const myReferralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      await setDoc(userDocRef, {
+        fullName: auth.currentUser.displayName || "Mining Member",
+        mobile: mobile,
+        email: auth.currentUser.email || "",
+        referralCode: myReferralCode,
+        referredBy: null,
+        role: mobile === "8144553816" ? "admin" : "user",
+        createdAt: serverTimestamp()
+      });
+      userSnap = await getDoc(userDocRef);
+    }
+
+    if (!walletSnap.exists()) {
+      await setDoc(walletDocRef, {
+        available: 100, // Welcome bonus of ₹100!
+        investment: 0,
+        earnings: 0,
+        lastCheckIn: null
+      });
+      walletSnap = await getDoc(walletDocRef);
+    }
+
     return {
       user: { id: uid, ...userSnap.data() },
       wallet: walletSnap.data()

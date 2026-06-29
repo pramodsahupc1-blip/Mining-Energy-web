@@ -64,9 +64,11 @@ export default function App() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (authUser) => {
       if (authUser) {
+        localStorage.setItem("mining_token", authUser.uid);
         setToken(authUser.uid);
         fetchUserData();
       } else {
+        localStorage.removeItem("mining_token");
         setToken(null);
         setLoading(false);
       }
@@ -162,6 +164,7 @@ export default function App() {
   // User Interactive Actions
   const handleLoginSuccess = (newToken: string, loggedInUser: any) => {
     // we use token as uid now since we use firebase auth state directly
+    localStorage.setItem("mining_token", newToken);
     setToken(newToken);
     setUser(loggedInUser);
     setActiveTab("home");
@@ -169,6 +172,7 @@ export default function App() {
 
   const handleLogout = async () => {
     await api.logout();
+    localStorage.removeItem("mining_token");
     setToken(null);
     setUser(null);
     setWallet(null);
