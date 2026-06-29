@@ -32,18 +32,21 @@ service cloud.firestore {
     
     match /wallets/{userId} {
       allow read: if isOwnerOrAdmin(userId);
-      allow write: if isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
     }
     
     match /plans/{planId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
     }
     
     match /investments/{investmentId} {
       allow read: if isOwnerOrAdmin(resource.data.userId);
       allow create: if isOwnerOrAdmin(request.resource.data.userId);
-      allow update: if isAdmin();
+      allow update: if isOwnerOrAdmin(resource.data.userId);
       allow delete: if isAdmin();
     }
     

@@ -16,6 +16,9 @@ import TeamView from "./components/TeamView";
 import WalletView from "./components/WalletView";
 import SupportView from "./components/SupportView";
 import AdminView from "./components/AdminView";
+import { api } from "./lib/api";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "./firebase";
 
 export default function App() {
   const [token, setToken] = useState<string | null>(localStorage.getItem("mining_token"));
@@ -59,14 +62,19 @@ export default function App() {
 
   // Initial Bootup
   useEffect(() => {
-    if (token) {
-      fetchUserData();
-    } else {
-      setLoading(false);
-    }
+    const unsub = onAuthStateChanged(auth, (authUser) => {
+      if (authUser) {
+        setToken(authUser.uid);
+        fetchUserData();
+      } else {
+        setToken(null);
+        setLoading(false);
+      }
+    });
     // Fetch global available plans
     fetchPlans();
-  }, [token]);
+    return () => unsub();
+  }, []);
 
   // Real-time Balance and Stat Polling every 4 seconds
   useEffect(() => {
@@ -80,37 +88,19 @@ export default function App() {
   // Fetch core user data
   const fetchUserData = async () => {
     try {
-      const res = await fetch("/api/auth/me", {
-        headers: { "x-auth-token": token || "" },
-      });
-      const result = await res.json();
-      if (result.success) {
-        setUser(result.data.user);
-        setWallet(result.data.wallet);
-        
-        // Fetch dashboard statistics
-        const dashRes = await fetch("/api/dashboard", {
-          headers: { "x-auth-token": token || "" },
-        });
-        const dashResult = await dashRes.json();
-        if (dashResult.success) {
-          setStats(dashResult.data.stats);
-          setAnnouncements(dashResult.data.announcements);
-        }
+      const data = await api.getMe();
+      setUser(data.user as any);
+      setWallet(data.wallet as any);
+      
+      // Fetch user personal arrays
+      await refreshUserArrays();
 
-        // Fetch user personal arrays
-        await refreshUserArrays();
-
-        // If user is admin, fetch admin console logs
-        if (result.data.user.role === "admin") {
-          await fetchAdminData();
-        }
-      } else {
-        // Token expired or invalid
-        handleLogout();
+      if ((data.user as any).role === "admin") {
+        await fetchAdminData();
       }
     } catch (err) {
       console.error("Error booting user session", err);
+      handleLogout();
     } finally {
       setLoading(false);
     }
@@ -120,13 +110,8 @@ export default function App() {
   const silentFetchUserData = async () => {
     if (!token) return;
     try {
-      const res = await fetch("/api/auth/me", {
-        headers: { "x-auth-token": token },
-      });
-      const result = await res.json();
-      if (result.success) {
-        setWallet(result.data.wallet);
-      }
+      const data = await api.getMe();
+      setWallet(data.wallet as any);
     } catch (err) {
       console.error("Silent polling failed", err);
     }
@@ -135,33 +120,17 @@ export default function App() {
   const refreshUserArrays = async () => {
     if (!token) return;
     try {
-      // Investments
-      const invRes = await fetch("/api/investments", {
-        headers: { "x-auth-token": token },
-      });
-      const invData = await invRes.json();
-      if (invData.success) setInvestments(invData.data);
+      const invData = await api.getInvestments();
+      setInvestments(invData as any);
 
-      // Transactions
-      const txRes = await fetch("/api/transactions", {
-        headers: { "x-auth-token": token },
-      });
-      const txData = await txRes.json();
-      if (txData.success) setTransactions(txData.data);
+      const txData = await api.getTransactions();
+      setTransactions(txData as any);
 
-      // Notifications
-      const notRes = await fetch("/api/notifications", {
-        headers: { "x-auth-token": token },
-      });
-      const notData = await notRes.json();
-      if (notData.success) setNotifications(notData.data);
+      const notData = await api.getNotifications();
+      setNotifications(notData as any);
 
-      // Support Tickets
-      const tRes = await fetch("/api/support", {
-        headers: { "x-auth-token": token },
-      });
-      const tData = await tRes.json();
-      if (tData.success) setTickets(tData.data);
+      const tData = await api.getTickets();
+      setTickets(tData as any);
     } catch (err) {
       console.error("Error refreshing active datasets", err);
     }
@@ -169,11 +138,8 @@ export default function App() {
 
   const fetchPlans = async () => {
     try {
-      const res = await fetch("/api/plans");
-      const result = await res.json();
-      if (result.success) {
-        setPlans(result.data);
-      }
+      const plansData = await api.getPlans();
+      setPlans(plansData as any);
     } catch (err) {
       console.error("Error fetching market pools", err);
     }
@@ -182,27 +148,12 @@ export default function App() {
   const fetchAdminData = async () => {
     if (!token) return;
     try {
-      const hHeaders = { "x-auth-token": token };
-
-      const statsRes = await fetch("/api/admin/stats", { headers: hHeaders });
-      const statsD = await statsRes.json();
-      if (statsD.success) setAdminStats(statsD.data);
-
-      const usersRes = await fetch("/api/admin/users", { headers: hHeaders });
-      const usersD = await usersRes.json();
-      if (usersD.success) setAdminUsers(usersD.data);
-
-      const recRes = await fetch("/api/admin/recharges", { headers: hHeaders });
-      const recD = await recRes.json();
-      if (recD.success) setAdminRecharges(recD.data);
-
-      const wdRes = await fetch("/api/admin/withdrawals", { headers: hHeaders });
-      const wdD = await wdRes.json();
-      if (wdD.success) setAdminWithdrawals(wdD.data);
-
-      const tickRes = await fetch("/api/admin/tickets", { headers: hHeaders });
-      const tickD = await tickRes.json();
-      if (tickD.success) setAdminTickets(tickD.data);
+      const stats = await api.adminGetStats();
+      setAdminStats(stats);
+      setAdminUsers(await api.adminGetUsers());
+      setAdminRecharges(await api.adminGetRecharges());
+      setAdminWithdrawals(await api.adminGetWithdrawals());
+      setAdminTickets(await api.adminGetTickets());
     } catch (err) {
       console.error("Admin data hydration failure", err);
     }
@@ -210,14 +161,14 @@ export default function App() {
 
   // User Interactive Actions
   const handleLoginSuccess = (newToken: string, loggedInUser: any) => {
-    localStorage.setItem("mining_token", newToken);
+    // we use token as uid now since we use firebase auth state directly
     setToken(newToken);
     setUser(loggedInUser);
     setActiveTab("home");
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("mining_token");
+  const handleLogout = async () => {
+    await api.logout();
     setToken(null);
     setUser(null);
     setWallet(null);
@@ -228,20 +179,14 @@ export default function App() {
   const handleCheckIn = async () => {
     setLoadingCheckIn(true);
     try {
-      const res = await fetch("/api/checkin", {
-        method: "POST",
-        headers: { "x-auth-token": token || "" },
-      });
-      const result = await res.json();
+      const result = await api.checkIn();
       if (result.success) {
-        setWallet(result.data.wallet);
         alert(result.message);
+        await silentFetchUserData();
         await refreshUserArrays();
-      } else {
-        alert(result.message);
       }
-    } catch (err) {
-      alert("Error reaching verification server");
+    } catch (err: any) {
+      alert(err.message || "Error reaching verification server");
     } finally {
       setLoadingCheckIn(false);
     }
@@ -250,23 +195,15 @@ export default function App() {
   const handleBuyPlan = async (planId: string) => {
     setLoadingPlanId(planId);
     try {
-      const res = await fetch("/api/plans/buy", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-auth-token": token || "",
-        },
-        body: JSON.stringify({ planId }),
-      });
-      const result = await res.json();
+      const result = await api.buyPlan(planId);
       alert(result.message);
       if (result.success) {
-        setWallet(result.data.wallet);
+        await silentFetchUserData();
         await refreshUserArrays();
-        setActiveTab("investments"); // Redirect to active rigs
+        setActiveTab("investments");
       }
-    } catch (err) {
-      alert("Error processing machine activation");
+    } catch (err: any) {
+      alert(err.message || "Error processing machine activation");
     } finally {
       setLoadingPlanId(null);
     }
@@ -275,20 +212,14 @@ export default function App() {
   const handleCollectYield = async () => {
     setLoadingCollect(true);
     try {
-      const res = await fetch("/api/investments/collect", {
-        method: "POST",
-        headers: { "x-auth-token": token || "" },
-      });
-      const result = await res.json();
+      const result = await api.collectYield();
       if (result.success) {
-        setWallet(result.data.wallet);
         alert(result.message);
+        await silentFetchUserData();
         await refreshUserArrays();
-      } else {
-        alert(result.message);
       }
-    } catch (err) {
-      alert("Collector connection failed");
+    } catch (err: any) {
+      alert(err.message || "Collector connection failed");
     } finally {
       setLoadingCollect(false);
     }
@@ -297,21 +228,13 @@ export default function App() {
   const handleRecharge = async (amount: number, method: string, reference: string) => {
     setLoadingAction(true);
     try {
-      const res = await fetch("/api/wallet/recharge", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-auth-token": token || "",
-        },
-        body: JSON.stringify({ amount, method, reference }),
-      });
-      const result = await res.json();
+      const result = await api.recharge(amount, method, reference);
       alert(result.message);
       if (result.success) {
         await refreshUserArrays();
       }
-    } catch (err) {
-      alert("Deposit queue failed");
+    } catch (err: any) {
+      alert(err.message || "Deposit queue failed");
     } finally {
       setLoadingAction(false);
     }
@@ -320,22 +243,14 @@ export default function App() {
   const handleWithdraw = async (payload: any) => {
     setLoadingAction(true);
     try {
-      const res = await fetch("/api/wallet/withdraw", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-auth-token": token || "",
-        },
-        body: JSON.stringify(payload),
-      });
-      const result = await res.json();
+      const result = await api.withdraw(payload);
       alert(result.message);
       if (result.success) {
-        setWallet(result.data.wallet);
+        await silentFetchUserData();
         await refreshUserArrays();
       }
-    } catch (err) {
-      alert("Withdraw gateway exception");
+    } catch (err: any) {
+      alert(err.message || "Withdraw gateway exception");
     } finally {
       setLoadingAction(false);
     }
@@ -344,21 +259,13 @@ export default function App() {
   const handleCreateTicket = async (subject: string, message: string) => {
     setLoadingTicket(true);
     try {
-      const res = await fetch("/api/support", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-auth-token": token || "",
-        },
-        body: JSON.stringify({ subject, message }),
-      });
-      const result = await res.json();
-      alert(result.message);
+      const result = await api.createTicket(subject, message);
       if (result.success) {
+        alert("Ticket created");
         await refreshUserArrays();
       }
-    } catch (err) {
-      alert("Ticketing failed");
+    } catch (err: any) {
+      alert(err.message || "Ticketing failed");
     } finally {
       setLoadingTicket(false);
     }
@@ -367,25 +274,15 @@ export default function App() {
   const handleSendReply = async (ticketId: string, message: string) => {
     setLoadingTicket(true);
     try {
-      const res = await fetch(`/api/support/${ticketId}/reply`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-auth-token": token || "",
-        },
-        body: JSON.stringify({ message }),
-      });
-      const result = await res.json();
+      const result = await api.replyTicket(ticketId, message);
       if (result.success) {
         await refreshUserArrays();
         if (user?.role === "admin") {
           await fetchAdminData();
         }
-      } else {
-        alert(result.message);
       }
-    } catch (err) {
-      alert("Reply transmitter failed");
+    } catch (err: any) {
+      alert(err.message || "Reply transmitter failed");
     } finally {
       setLoadingTicket(false);
     }
@@ -394,19 +291,8 @@ export default function App() {
   // Administrative Operations
   const handleVerifyRecharge = async (id: string, status: "SUCCESS" | "FAILED") => {
     try {
-      const res = await fetch(`/api/admin/recharges/${id}/verify`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-auth-token": token || "",
-        },
-        body: JSON.stringify({ status }),
-      });
-      const result = await res.json();
-      alert(result.message);
-      if (result.success) {
-        await fetchAdminData();
-      }
+      await api.adminVerifyRecharge(id, status);
+      await fetchAdminData();
     } catch (err) {
       alert("Error executing recharge verification");
     }
@@ -414,19 +300,8 @@ export default function App() {
 
   const handleVerifyWithdrawal = async (id: string, status: "APPROVED" | "REJECTED") => {
     try {
-      const res = await fetch(`/api/admin/withdrawals/${id}/verify`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-auth-token": token || "",
-        },
-        body: JSON.stringify({ status }),
-      });
-      const result = await res.json();
-      alert(result.message);
-      if (result.success) {
-        await fetchAdminData();
-      }
+      await api.adminVerifyWithdrawal(id, status);
+      await fetchAdminData();
     } catch (err) {
       alert("Error executing withdrawal verification");
     }
@@ -434,19 +309,8 @@ export default function App() {
 
   const handleAdjustBalance = async (userId: string, amount: number, type: "available" | "earnings") => {
     try {
-      const res = await fetch(`/api/admin/users/${userId}/adjust-balance`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-auth-token": token || "",
-        },
-        body: JSON.stringify({ amount, balanceType: type }),
-      });
-      const result = await res.json();
-      alert(result.message);
-      if (result.success) {
-        await fetchAdminData();
-      }
+      await api.adminAdjustBalance(userId, amount, type);
+      await fetchAdminData();
     } catch (err) {
       alert("Error transmitting manual adjustment");
     }
@@ -454,19 +318,9 @@ export default function App() {
 
   const handleUpdateTicketStatus = async (ticketId: string, status: string) => {
     try {
-      const res = await fetch(`/api/admin/tickets/${ticketId}/status`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-auth-token": token || "",
-        },
-        body: JSON.stringify({ status }),
-      });
-      const result = await res.json();
-      if (result.success) {
-        await fetchAdminData();
-        await refreshUserArrays();
-      }
+      await api.adminUpdateTicketStatus(ticketId, status);
+      await fetchAdminData();
+      await refreshUserArrays();
     } catch (err) {
       alert("Status update failed");
     }
@@ -474,20 +328,9 @@ export default function App() {
 
   const handleCreatePlan = async (plan: any) => {
     try {
-      const res = await fetch("/api/admin/plans", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-auth-token": token || "",
-        },
-        body: JSON.stringify(plan),
-      });
-      const result = await res.json();
-      alert(result.message);
-      if (result.success) {
-        await fetchPlans();
-        await fetchAdminData();
-      }
+      await api.adminCreatePlan(plan);
+      await fetchPlans();
+      await fetchAdminData();
     } catch (err) {
       alert("Model publication exception");
     }
@@ -496,16 +339,9 @@ export default function App() {
   const handleMarkNotificationsRead = async () => {
     setIsNotifOpen(true);
     try {
-      await fetch("/api/notifications/read", {
-        method: "POST",
-        headers: { "x-auth-token": token || "" },
-      });
-      // Silent reload local dataset
-      const res = await fetch("/api/notifications", {
-        headers: { "x-auth-token": token || "" },
-      });
-      const d = await res.json();
-      if (d.success) setNotifications(d.data);
+      await api.markNotifsRead();
+      const notData = await api.getNotifications();
+      setNotifications(notData as any);
     } catch (err) {
       console.error(err);
     }

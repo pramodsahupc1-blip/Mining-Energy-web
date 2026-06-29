@@ -5,6 +5,8 @@ interface AuthViewProps {
   onLoginSuccess: (token: string, user: any) => void;
 }
 
+import { api } from "../lib/api";
+
 export default function AuthView({ onLoginSuccess }: AuthViewProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [fullName, setFullName] = useState("");
@@ -56,29 +58,52 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
     setLoading(true);
 
     try {
-      const endpoint = isLogin ? "/api/auth/login" : "/api/auth/register";
-      const body = isLogin 
-        ? { mobile, password } 
-        : { fullName, mobile, password, referralCode };
-
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      const result = await res.json();
-
-      if (result.success) {
-        setSuccess(result.message);
-        setTimeout(() => {
-          onLoginSuccess(result.data.token, result.data.user);
-        }, 1000);
+      let uid = "";
+      if (isLogin) {
+        uid = await api.login(mobile, password);
       } else {
-        setError(result.message || "Authentication failed. Please try again.");
+        uid = await api.register(mobile, password, fullName, referralCode);
       }
-    } catch (err) {
-      setError("Connection to server failed. Please try again.");
+      
+      setSuccess(isLogin ? "Login successful!" : "Registration successful!");
+      setTimeout(async () => {
+        try {
+          const { user } = await api.getMe();
+          onLoginSuccess(uid, user);
+        } catch (err) {
+          setError("Failed to fetch user data after auth.");
+        }
+      }, 500);
+    } catch (err: any) {
+      setError(err.message || "Authentication failed. Please try again.");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError("");
+    setSuccess("");
+    setLoading(true);
+
+    try {
+      const uid = await api.signInWithGoogle();
+      setSuccess("Google Sign-In successful!");
+      setTimeout(async () => {
+        try {
+          const { user } = await api.getMe();
+          onLoginSuccess(uid, user);
+        } catch (err) {
+          setError("Failed to fetch user data after Google Auth.");
+        }
+      }, 500);
+    } catch (err: any) {
+      if (err.code === "auth/popup-blocked") {
+        setError("Sign-in popup was blocked. Please allow popups for this site.");
+      } else {
+        setError(err.message || "Google Authentication failed. Please try again.");
+      }
       console.error(err);
     } finally {
       setLoading(false);
@@ -252,6 +277,31 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
             )}
           </button>
         </form>
+
+        <div className="relative my-5">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-slate-800"></div>
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-slate-900 px-3.5 text-slate-500 font-medium">Or continue with</span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          disabled={loading}
+          onClick={handleGoogleSignIn}
+          className="w-full bg-slate-950 hover:bg-slate-800 text-slate-200 font-semibold py-3 px-4 rounded-2xl flex items-center justify-center gap-3 border border-slate-800 shadow-md transition-all hover:border-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? (
+            <span className="w-5 h-5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <>
+              <div className="w-5 h-5 flex items-center justify-center font-bold text-base text-orange-500 font-sans select-none">G</div>
+              <span>Sign in with Google</span>
+            </>
+          )}
+        </button>
 
         <div className="mt-6 pt-6 border-t border-slate-800 text-center">
           <p className="text-sm text-slate-400">
