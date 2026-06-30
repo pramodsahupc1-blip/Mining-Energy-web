@@ -75,6 +75,7 @@ export default function App() {
     });
     // Fetch global available plans
     fetchPlans();
+    fetchAnnouncements();
     return () => unsub();
   }, []);
 
@@ -144,6 +145,15 @@ export default function App() {
       setPlans(plansData as any);
     } catch (err) {
       console.error("Error fetching market pools", err);
+    }
+  };
+
+  const fetchAnnouncements = async () => {
+    try {
+      const anns = await api.getAnnouncements();
+      setAnnouncements(anns);
+    } catch (err) {
+      console.error("Error fetching announcements", err);
     }
   };
 
@@ -356,6 +366,89 @@ export default function App() {
     }
   };
 
+  const handleAdminDeleteUser = async (userId: string) => {
+    try {
+      if (!confirm("Are you sure you want to permanently delete this user?")) return;
+      await api.adminDeleteUser(userId);
+      await fetchAdminData();
+    } catch (err) {
+      alert("Error deleting user");
+    }
+  };
+
+  const handleAdminToggleUserRole = async (userId: string, currentRole: string) => {
+    try {
+      await api.adminToggleUserRole(userId, currentRole);
+      await fetchAdminData();
+    } catch (err) {
+      alert("Error toggling user role");
+    }
+  };
+
+  const handleAdminTogglePlanStatus = async (planId: string, currentStatus: boolean) => {
+    try {
+      await api.adminTogglePlanStatus(planId, currentStatus);
+      await fetchPlans();
+    } catch (err) {
+      alert("Error toggling plan status");
+    }
+  };
+
+  const handleAdminDeletePlan = async (planId: string) => {
+    try {
+      if (!confirm("Are you sure you want to delete this mining machine?")) return;
+      await api.adminDeletePlan(planId);
+      await fetchPlans();
+    } catch (err) {
+      alert("Error deleting plan");
+    }
+  };
+
+  const handleAdminUpdatePlan = async (planId: string, updates: any) => {
+    try {
+      await api.adminUpdatePlan(planId, updates);
+      await fetchPlans();
+    } catch (err) {
+      alert("Error updating plan details");
+    }
+  };
+
+  const handleAdminCreateAnnouncement = async (title: string, content: string) => {
+    try {
+      await api.adminCreateAnnouncement(title, content);
+      await fetchAnnouncements();
+    } catch (err) {
+      alert("Error creating announcement");
+    }
+  };
+
+  const handleAdminDeleteAnnouncement = async (id: string) => {
+    try {
+      await api.adminDeleteAnnouncement(id);
+      await fetchAnnouncements();
+    } catch (err) {
+      alert("Error deleting announcement");
+    }
+  };
+
+  const handleAdminSendNotification = async (userId: string, title: string, message: string) => {
+    try {
+      await api.adminSendNotification(userId, title, message);
+      alert("Notification sent successfully!");
+    } catch (err) {
+      alert("Error sending notification");
+    }
+  };
+
+  const handleAdminBroadcastNotification = async (title: string, message: string) => {
+    try {
+      await api.adminBroadcastNotification(title, message);
+      alert("Notification broadcasted to all users successfully!");
+    } catch (err) {
+      alert("Error broadcasting notification");
+    }
+  };
+
   const handleMarkNotificationsRead = async () => {
     setIsNotifOpen(true);
     try {
@@ -520,6 +613,7 @@ export default function App() {
             withdrawalsList={adminWithdrawals}
             ticketsList={adminTickets}
             plansList={plans}
+            announcementsList={announcements}
             onVerifyRecharge={handleVerifyRecharge}
             onVerifyWithdrawal={handleVerifyWithdrawal}
             onAdjustBalance={handleAdjustBalance}
@@ -527,6 +621,15 @@ export default function App() {
             onUpdateTicketStatus={handleUpdateTicketStatus}
             onCreatePlan={handleCreatePlan}
             onRefreshAdminData={fetchAdminData}
+            onDeleteUser={handleAdminDeleteUser}
+            onToggleUserRole={handleAdminToggleUserRole}
+            onTogglePlanStatus={handleAdminTogglePlanStatus}
+            onDeletePlan={handleAdminDeletePlan}
+            onUpdatePlan={handleAdminUpdatePlan}
+            onCreateAnnouncement={handleAdminCreateAnnouncement}
+            onDeleteAnnouncement={handleAdminDeleteAnnouncement}
+            onSendNotification={handleAdminSendNotification}
+            onBroadcastNotification={handleAdminBroadcastNotification}
           />
         )}
       </main>

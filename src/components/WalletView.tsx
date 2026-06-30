@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Wallet, RefreshCw, Copy, ArrowDownLeft, ArrowUpRight, 
   Clock, CheckCircle, XCircle, Landmark, CreditCard, Send, ShieldCheck,
   ArrowLeft, X, Loader2
 } from "lucide-react";
 import { Wallet as WalletType, Transaction } from "../types";
+import { api } from "../lib/api";
 
 interface WalletViewProps {
   wallet: WalletType;
@@ -49,8 +50,22 @@ export default function WalletView({
   const [ifscCode, setIfscCode] = useState<string>("");
   const [withdrawMethod, setWithdrawMethod] = useState<"UPI" | "BANK">("UPI");
 
-  const UPI_RECEIVER_ID_YBL = "8144553816@ybl";
-  const UPI_RECEIVER_ID_FAM = "8144553816@FAM";
+  const [paymentSettings, setPaymentSettings] = useState({
+    upiId: "jinwoosung.jg@oksbi",
+    upiIdSecondary: "jinwoosung.jg@oksbi",
+    upiName: "UPI Payments"
+  });
+
+  useEffect(() => {
+    api.getPaymentSettings().then((settings) => {
+      if (settings) {
+        setPaymentSettings(settings);
+      }
+    });
+  }, []);
+
+  const UPI_RECEIVER_ID_YBL = paymentSettings.upiId;
+  const UPI_RECEIVER_ID_FAM = paymentSettings.upiIdSecondary;
 
   // Instant UPI Gateway States
   const [showUpiGateway, setShowUpiGateway] = useState(false);
@@ -283,7 +298,7 @@ export default function WalletView({
                   <Landmark size={14} />
                 </span>
                 <div className="text-left">
-                  <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider block">NSDL PAYMENTS BANK</span>
+                  <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider block">{paymentSettings.upiName || "NSDL PAYMENTS BANK"}</span>
                   <span className="text-xs text-slate-200 font-bold">Official Payment QR</span>
                 </div>
               </div>
@@ -291,7 +306,7 @@ export default function WalletView({
               {/* QR Code Frame */}
               <div className="relative p-3 bg-white rounded-2xl shadow-xl shadow-black/40 border border-slate-100 flex flex-col items-center">
                 <img 
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`upi://pay?pa=8144553816@ybl&pn=NSDL%20Payments%20Bank&cu=INR&am=${rechargeAmount}`)}`}
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(`upi://pay?pa=${UPI_RECEIVER_ID_YBL}&pn=${encodeURIComponent(paymentSettings.upiName || "Official Receiver")}&cu=INR&am=${rechargeAmount}`)}`}
                   alt="UPI Payment QR Code"
                   className="w-40 h-40 object-contain"
                   referrerPolicy="no-referrer"
@@ -303,54 +318,15 @@ export default function WalletView({
               </div>
 
               <div className="space-y-1 z-10">
-                <p className="font-mono text-xs font-bold text-slate-300">8144553816@ybl</p>
+                <p className="font-mono text-xs font-bold text-slate-300">{UPI_RECEIVER_ID_YBL}</p>
                 <p className="text-[10px] text-slate-500 max-w-[200px] leading-relaxed mx-auto">
                   Scan QR with PhonePe, Google Pay, Paytm, or BHIM for instant automatic crediting.
                 </p>
               </div>
             </div>
-
-            <div className="p-4 bg-slate-900/50 border border-slate-800/80 rounded-xl space-y-3">
-              <span className="text-slate-500 text-xxs uppercase font-bold tracking-wider block">Or Copy UPI ID Manually:</span>
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-between items-center bg-slate-950/40 p-2.5 rounded-lg border border-slate-800/40">
-                  <div className="space-y-0.5">
-                    <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Option A: PhonePe / NSDL Bank</span>
-                    <p className="font-mono text-xs font-bold text-slate-200">{UPI_RECEIVER_ID_YBL}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(UPI_RECEIVER_ID_YBL);
-                      alert("UPI ID (8144553816@ybl) copied!");
-                    }}
-                    className="p-2 bg-orange-600/15 hover:bg-orange-600/25 text-orange-400 rounded-lg transition-colors text-xxs font-bold flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Copy size={12} /> Copy
-                  </button>
-                </div>
-
-                <div className="flex justify-between items-center bg-slate-950/40 p-2.5 rounded-lg border border-slate-800/40">
-                  <div className="space-y-0.5">
-                    <span className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Option B: FamPay / FamApp</span>
-                    <p className="font-mono text-xs font-bold text-slate-200">{UPI_RECEIVER_ID_FAM}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(UPI_RECEIVER_ID_FAM);
-                      alert("UPI ID (8144553816@FAM) copied!");
-                    }}
-                    className="p-2 bg-orange-600/15 hover:bg-orange-600/25 text-orange-400 rounded-lg transition-colors text-xxs font-bold flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Copy size={12} /> Copy
-                  </button>
-                </div>
-              </div>
-            </div>
-
+            
             <p className="text-xxs text-slate-500 leading-normal">
-              Note: Open your preferred financial app, scan the QR code above or pay to one of the official IDs, and input the 12-digit transaction index / ref number.
+              Note: Open your preferred financial app, scan the QR code above, and input the 12-digit transaction index / ref number.
             </p>
           </div>
 

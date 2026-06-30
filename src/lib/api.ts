@@ -1,6 +1,6 @@
 import { db, auth } from "../firebase";
 import { 
-  collection, doc, getDoc, getDocs, setDoc, updateDoc, 
+  collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc,
   query, where, orderBy, addDoc, serverTimestamp, increment, runTransaction, Timestamp
 } from "firebase/firestore";
 import { 
@@ -587,6 +587,35 @@ export const api = {
     await Promise.all(promises);
   },
 
+  async getAnnouncements() {
+    try {
+      const snap = await getDocs(collection(db, "announcements"));
+      const items = snap.docs.map(d => {
+        const data = d.data();
+        let cAt = new Date().toISOString();
+        if (data.createdAt) {
+          if (typeof data.createdAt.toDate === "function") {
+            cAt = data.createdAt.toDate().toISOString();
+          } else if (data.createdAt.seconds) {
+            cAt = new Date(data.createdAt.seconds * 1000).toISOString();
+          } else {
+            cAt = String(data.createdAt);
+          }
+        }
+        return {
+          id: d.id,
+          title: data.title || "",
+          content: data.content || "",
+          createdAt: cAt
+        };
+      });
+      return items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    } catch (error) {
+      console.warn("Announcements collection missing or inaccessible", error);
+      return [];
+    }
+  },
+
   // Admin Methods
   async adminGetStats() {
     try {
@@ -707,4 +736,134 @@ export const api = {
     await setDoc(doc(collection(db, "plans")), { ...plan, status: true });
     return { success: true };
   },
+  async adminDeleteUser(userId: string) {
+    try {
+      await deleteDoc(doc(db, "users", userId));
+      await deleteDoc(doc(db, "wallets", userId));
+      return { success: true };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `users/${userId}`);
+    }
+  },
+  async adminToggleUserRole(userId: string, currentRole: string) {
+    try {
+      const newRole = currentRole === "admin" ? "user" : "admin";
+      await updateDoc(doc(db, "users", userId), { role: newRole });
+      return { success: true };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
+    }
+  },
+  async adminTogglePlanStatus(planId: string, currentStatus: boolean) {
+    try {
+      await updateDoc(doc(db, "plans", planId), { status: !currentStatus });
+      return { success: true };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `plans/${planId}`);
+    }
+  },
+  async adminDeletePlan(planId: string) {
+    try {
+      await deleteDoc(doc(db, "plans", planId));
+      return { success: true };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `plans/${planId}`);
+    }
+  },
+  async adminUpdatePlan(planId: string, updates: any) {
+    try {
+      await updateDoc(doc(db, "plans", planId), updates);
+      return { success: true };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `plans/${planId}`);
+    }
+  },
+  async adminCreateAnnouncement(title: string, content: string) {
+    try {
+      const annRef = doc(collection(db, "announcements"));
+      await setDoc(annRef, {
+        title,
+        content,
+        createdAt: serverTimestamp()
+      });
+      return { success: true, id: annRef.id };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, "announcements");
+    }
+  },
+  async adminDeleteAnnouncement(id: string) {
+    try {
+      await deleteDoc(doc(db, "announcements", id));
+      return { success: true };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `announcements/${id}`);
+    }
+  },
+  async adminSendNotification(userId: string, title: string, message: string) {
+    try {
+      const notRef = doc(collection(db, "notifications"));
+      await setDoc(notRef, {
+        userId,
+        title,
+        message,
+        isRead: false,
+        createdAt: serverTimestamp()
+      });
+      return { success: true };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, "notifications");
+    }
+  },
+  async adminBroadcastNotification(title: string, message: string) {
+    try {
+      const usersSnap = await getDocs(collection(db, "users"));
+      const promises = usersSnap.docs.map(u => {
+        const notRef = doc(collection(db, "notifications"));
+        return setDoc(notRef, {
+          userId: u.id,
+          title,
+          message,
+          isRead: false,
+          createdAt: serverTimestamp()
+        });
+      });
+      await Promise.all(promises);
+      return { success: true };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, "notifications/broadcast");
+    }
+  },
+  async getPaymentSettings() {
+    try {
+      const snap = await getDoc(doc(db, "settings", "payment"));
+      if (snap.exists()) {
+        const data = snap.data();
+        return {
+          upiId: data.upiId || "jinwoosung.jg@oksbi",
+          upiIdSecondary: data.upiIdSecondary || "jinwoosung.jg@oksbi",
+          upiName: data.upiName || "UPI Payments"
+        };
+      }
+      return {
+        upiId: "jinwoosung.jg@oksbi",
+        upiIdSecondary: "jinwoosung.jg@oksbi",
+        upiName: "UPI Payments"
+      };
+    } catch (error) {
+      console.warn("Could not fetch payment settings, using defaults.", error);
+      return {
+        upiId: "jinwoosung.jg@oksbi",
+        upiIdSecondary: "jinwoosung.jg@oksbi",
+        upiName: "UPI Payments"
+      };
+    }
+  },
+  async updatePaymentSettings(updates: { upiId: string; upiIdSecondary?: string; upiName?: string }) {
+    try {
+      await setDoc(doc(db, "settings", "payment"), updates, { merge: true });
+      return { success: true };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, "settings/payment");
+    }
+  }
 };
