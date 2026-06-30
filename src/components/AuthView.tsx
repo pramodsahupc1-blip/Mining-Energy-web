@@ -75,7 +75,11 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
         }
       }, 500);
     } catch (err: any) {
-      setError(err.message || "Authentication failed. Please try again.");
+      if (err.code === "auth/invalid-credential") {
+        setError("Invalid mobile number or password.");
+      } else {
+        setError(err.message || "Authentication failed. Please try again.");
+      }
       console.error(err);
     } finally {
       setLoading(false);
@@ -323,9 +327,7 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
         {isLogin && (
           <div className="mt-4 p-3 bg-slate-950 border border-slate-800/80 rounded-2xl text-center">
             <p className="text-xs text-slate-500">
-              Demo Admin Mobile: <span className="font-mono text-slate-300">8144553816</span>
-              <br />
-              Demo Admin Password: <span className="font-mono text-slate-300">admin16</span>
+              Please enter your credentials to securely access your investment dashboard.
             </p>
           </div>
         )}
